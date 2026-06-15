@@ -1,15 +1,25 @@
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
-import { HomeScreen } from '@/features/home/HomeScreen';
+import { AivaAskScreen } from '@/features/aiva/screens/AivaAskScreen';
+import { AivaHistoryScreen } from '@/features/aiva/screens/AivaHistoryScreen';
+import { AivaHomeScreen } from '@/features/aiva/screens/AivaHomeScreen';
+import { AivaPairScreen } from '@/features/aiva/screens/AivaPairScreen';
 
-import type { AppStackParamList } from './types';
+import { BottomNav } from '../features/aiva/components/BottomNav';
+import type { AppTabParamList } from './types';
 
-const Stack = createNativeStackNavigator<AppStackParamList>();
+const Tab = createBottomTabNavigator<AppTabParamList>();
 
 export function AppNavigator() {
   return (
-    <Stack.Navigator>
-      <Stack.Screen name="Home" component={HomeScreen} />
-    </Stack.Navigator>
+    <Tab.Navigator
+      tabBar={(props) => <BottomNav {...props} />}
+      screenOptions={{ headerShown: false }}
+    >
+      <Tab.Screen name="AivaHome" component={AivaHomeScreen} />
+      <Tab.Screen name="AivaHistory" component={AivaHistoryScreen} />
+      <Tab.Screen name="AivaAsk" component={AivaAskScreen} />
+      <Tab.Screen name="AivaPair" component={AivaPairScreen} />
+    </Tab.Navigator>
   );
 }

@@ -7,7 +7,7 @@ export function Screen({ style, children, ...props }: ViewProps) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      <View style={[{ flex: 1, padding: theme.spacing.lg }, style]} {...props}>
+      <View style={[{ flex: 1, paddingHorizontal: 20, paddingVertical: 8 }, style]} {...props}>
         {children}
       </View>
     </SafeAreaView>
