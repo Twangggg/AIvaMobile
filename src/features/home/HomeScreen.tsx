@@ -11,14 +11,14 @@ import { useAppTheme } from '@/theme/theme';
 export function HomeScreen() {
   const theme = useAppTheme();
   const { logout } = useAuth();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   return (
     <Screen>
       <View style={{ gap: theme.spacing.md, justifyContent: 'center', flex: 1 }}>
-        <Text variant="title">AIva Mobile</Text>
+        <Text variant="title">{t('shell.title')}</Text>
         <Text tone="muted">{format(new Date(), 'yyyy-MM-dd HH:mm')}</Text>
-        <Button label="Logout" onPress={logout} />
+        <Button label={t('common.disconnect')} onPress={logout} />
         <Button label="Switch Language" variant="ghost" onPress={() => i18n.changeLanguage(i18n.language === 'vi' ? 'en' : 'vi')} />
       </View>
     </Screen>

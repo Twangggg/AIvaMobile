@@ -1,82 +1,93 @@
-import Constants from 'expo-constants';
+import { Ionicons } from '@expo/vector-icons';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { CompositeNavigationProp } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { AppTabParamList, MainStackParamList } from '@/navigation/types';
 import { useAppTheme } from '@/theme/theme';
 
 type Props = {
   children: ReactNode;
+  showBack?: boolean;
 };
 
-export function AppShell({ children }: Props) {
+type ShellNav = CompositeNavigationProp<
+  BottomTabNavigationProp<AppTabParamList>,
+  NativeStackNavigationProp<MainStackParamList>
+>;
+
+export function AppShell({ children, showBack }: Props) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
-  const topInset = insets.top || Constants.statusBarHeight || 0;
+  const navigation = useNavigation<ShellNav>();
 
   return (
-    <View style={[styles.safe, { backgroundColor: theme.colors.background }]}>
-      <View style={{ height: topInset, backgroundColor: theme.colors.background }} />
-      <View style={[styles.header, { backgroundColor: theme.colors.background + 'CC', borderBottomColor: theme.colors.textMuted + '20' }]}>
-        <View style={styles.headerLeft}>
-          <Text style={[styles.logoIcon, { color: theme.colors.brandGold }]}>◆</Text>
-          <Text style={[styles.logoText, { color: theme.colors.brandGold }]}>AIVA</Text>
+    <View style={[styles.safe, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: theme.colors.background,
+            borderBottomColor: theme.colors.border,
+            ...theme.shadows.card,
+          },
+        ]}
+      >
+        <View style={styles.side}>
+          {showBack ? (
+            <Pressable onPress={() => navigation.goBack()} hitSlop={8} style={styles.iconBtn}>
+              <Ionicons name="chevron-back" size={22} color={theme.colors.primary} />
+            </Pressable>
+          ) : (
+            <View style={styles.iconBtn} />
+          )}
         </View>
-        <View style={styles.headerRight}>
-          <View style={styles.avatar}>
-            <Text style={[styles.avatarText, { color: theme.colors.brandGold }]}>●</Text>
-          </View>
+
+        <Text style={[styles.logo, { color: theme.colors.primary }]}>AIVA</Text>
+
+        <View style={[styles.side, styles.sideRight]}>
+          <View style={styles.iconBtn} />
         </View>
       </View>
-      <View style={styles.content}>
-        {children}
-      </View>
+      <View style={styles.content}>{children}</View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-  },
+  safe: { flex: 1 },
   header: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: 20,
-    height: 48,
-    borderBottomWidth: 1,
+    paddingVertical: 12,
+    minHeight: 56,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    zIndex: 2,
   },
-  headerLeft: {
+  side: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
-  logoIcon: {
-    fontSize: 22,
-    fontWeight: '700',
+  sideRight: {
+    justifyContent: 'flex-end',
   },
-  logoText: {
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  avatar: {
+  iconBtn: {
     width: 32,
     height: 32,
-    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: {
-    fontSize: 18,
+  logo: {
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  content: {
-    flex: 1,
-  },
+  content: { flex: 1 },
 });

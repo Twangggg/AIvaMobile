@@ -1,10 +1,12 @@
-import { darkColors, spacing, typography } from './tokens';
+import { lightColors, radii, shadows, spacing, typography } from './tokens';
 
 export function useAppTheme() {
   return {
-    colors: darkColors,
+    colors: lightColors,
     spacing,
+    radii,
     typography,
-    isDark: true,
+    shadows,
+    isDark: false,
   };
 }

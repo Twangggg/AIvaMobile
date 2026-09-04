@@ -9,20 +9,19 @@ export function Input({ style, placeholderTextColor, ...props }: TextInputProps)
     <TextInput
       style={[
         {
-          borderBottomWidth: 1,
-          borderWidth: 0,
-          borderRadius: 0,
-          minHeight: 44,
-          paddingHorizontal: 0,
-          borderColor: theme.colors.textMuted + '60',
-          backgroundColor: 'transparent',
+          borderWidth: 1,
+          borderRadius: theme.radii.md,
+          minHeight: 48,
+          paddingHorizontal: theme.spacing.lg,
+          paddingVertical: theme.spacing.md,
+          borderColor: theme.colors.borderStrong,
+          backgroundColor: theme.colors.surface,
           color: theme.colors.text,
-          fontFamily: theme.typography.body.fontFamily,
           fontSize: theme.typography.body.fontSize,
         },
         style,
       ]}
-      placeholderTextColor={placeholderTextColor ?? theme.colors.textMuted + '80'}
+      placeholderTextColor={placeholderTextColor ?? theme.colors.textMuted}
       {...props}
     />
   );

@@ -11,25 +11,24 @@ export function Button({ label, variant = 'primary', ...props }: Props) {
   return (
     <Pressable
       style={({ pressed }) => ({
-        backgroundColor: variant === 'primary' ? theme.colors.brandGold : 'transparent',
-        borderColor: variant === 'primary' ? 'transparent' : theme.colors.textMuted,
+        backgroundColor: variant === 'primary' ? theme.colors.accent : 'transparent',
+        borderColor: variant === 'primary' ? 'transparent' : theme.colors.borderStrong,
         borderWidth: 1,
-        borderRadius: 4,
-        minHeight: 44,
+        borderRadius: theme.radii.md,
+        minHeight: 48,
+        paddingHorizontal: theme.spacing.lg,
         alignItems: 'center',
         justifyContent: 'center',
-        opacity: pressed ? 0.85 : 1,
+        opacity: pressed || props.disabled ? 0.7 : 1,
       })}
       {...props}
     >
       <Text
         style={{
-          color: variant === 'primary' ? theme.colors.background : theme.colors.textMuted,
-          fontFamily: theme.typography.labelMd.fontFamily,
+          color: variant === 'primary' ? theme.colors.onAccent : theme.colors.textMuted,
           fontSize: theme.typography.labelMd.fontSize,
           fontWeight: '700',
           letterSpacing: theme.typography.labelMd.letterSpacing,
-          textTransform: 'uppercase',
         }}
       >
         {label}

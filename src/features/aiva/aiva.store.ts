@@ -1,65 +1,111 @@
 import { create } from 'zustand';
 
+import i18n from '@/i18n';
+
+import type { QueryKind, QueryRecord, QuerySource } from './services/queries.service';
+
+export type WiFiState = 'connected' | 'disconnected' | 'idle' | 'no_ssid' | 'auth_failed' | 'unknown';
+
 export type DeviceState = {
   name: string;
   connected: boolean;
   battery: number;
   signal: 0 | 1 | 2 | 3 | 4;
   wifiSsid: string;
+  wifiRssi: number;
+  wifiStatus: WiFiState;
   serverKey: string;
+  serverUrl: string;
+  appUrl: string;
+  deviceId: string;
+  /** Backend Devices.Id (GUID) when paired to cloud. */
+  cloudDeviceId: string;
   firmware: string;
+  sd: boolean;
+  mode: 'test' | 'deploy';
+  ip: string;
+  heap: number;
+  iotBotUrl: string;
+  iotLinked: boolean;
+  playState: 'idle' | 'listening' | 'speaking' | 'capturing' | 'quiet';
 };
 
-export type ActivityKind = 'question' | 'lookup' | 'camera';
+export type ActivityKind = QueryKind;
 
 export type ActivityItem = {
   id: string;
   kind: ActivityKind;
   title: string;
   context: string;
-  source: 'glass' | 'phone';
+  source: QuerySource;
   at: number;
+  status?: string;
+  result?: string | null;
 };
 
 const defaultDevice: DeviceState = {
-  name: 'AIva Glass Gen 1',
-  connected: true,
-  battery: 68,
-  signal: 3,
-  wifiSsid: 'Home_Alpha_5G',
-  serverKey: 'AIVA-7F2K-9XQ1-LM34',
-  firmware: '1.4.2',
+  name: i18n.t('store.defaultName'),
+  connected: false,
+  battery: 0,
+  signal: 0,
+  wifiSsid: '',
+  wifiRssi: 0,
+  wifiStatus: 'idle',
+  serverKey: '',
+  serverUrl: '',
+  appUrl: '',
+  deviceId: '',
+  cloudDeviceId: '',
+  firmware: '',
+  sd: false,
+  mode: 'deploy',
+  ip: '',
+  heap: 0,
+  iotBotUrl: '',
+  iotLinked: false,
+  playState: 'idle',
 };
-
-const defaultActivity: ActivityItem[] = [
-  { id: 'a1', kind: 'lookup', title: 'Đã tra cứu lò vi sóng', context: 'Tại Nhà', source: 'glass', at: Date.now() - 1000 * 60 * 42 },
-  { id: 'a2', kind: 'question', title: 'Đã hỏi cách dùng máy ảnh', context: 'Studio', source: 'glass', at: Date.now() - 1000 * 60 * 60 * 22 },
-  { id: 'a3', kind: 'camera', title: 'Chụp menu nhà hàng', context: 'Quán cà phê mới', source: 'phone', at: Date.now() - 1000 * 60 * 60 * 30 },
-];
 
 export function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'vừa xong';
-  if (mins < 60) return `${mins} phút trước`;
+  if (mins < 1) return i18n.t('store.timeJustNow');
+  if (mins < 60) return `${mins} ${i18n.t('store.timeMinutes')}`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} giờ trước`;
+  if (hours < 24) return `${hours} ${i18n.t('store.timeHours')}`;
   const days = Math.floor(hours / 24);
-  if (days === 1) return 'Hôm qua';
-  return `${days} ngày trước`;
+  if (days === 1) return i18n.t('store.timeYesterday');
+  return `${days} ${i18n.t('store.timeDays')}`;
+}
+
+export function queryToActivity(q: QueryRecord): ActivityItem {
+  return {
+    id: q.id,
+    kind: (q.kind as ActivityKind) || 'question',
+    title: q.title,
+    context: q.context || q.result?.slice(0, 120) || '',
+    source: (q.source as QuerySource) || 'phone',
+    at: new Date(q.createdAt).getTime(),
+    status: q.status,
+    result: q.result,
+  };
 }
 
 type AivaStore = {
   device: DeviceState;
   activities: ActivityItem[];
+  activitiesSyncedAt: number | null;
   updateDevice: (patch: Partial<DeviceState>) => void;
-  addActivity: (item: Omit<ActivityItem, 'id' | 'at'>) => void;
+  addActivity: (item: Omit<ActivityItem, 'id' | 'at'> & { id?: string; at?: number }) => void;
+  upsertActivityFromQuery: (item: ActivityItem) => void;
+  setActivities: (items: ActivityItem[]) => void;
   clearActivities: () => void;
 };
 
 export const useAivaStore = create<AivaStore>((set) => ({
   device: defaultDevice,
-  activities: defaultActivity,
+  activities: [],
+  activitiesSyncedAt: null,
 
   updateDevice: (patch) =>
     set((state) => ({ device: { ...state.device, ...patch } })),
@@ -67,10 +113,26 @@ export const useAivaStore = create<AivaStore>((set) => ({
   addActivity: (item) =>
     set((state) => ({
       activities: [
-        { ...item, id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, at: Date.now() },
-        ...state.activities,
-      ].slice(0, 30),
+        {
+          ...item,
+          id: item.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          at: item.at ?? Date.now(),
+        },
+        ...state.activities.filter((a) => a.id !== item.id),
+      ].slice(0, 50),
     })),
 
-  clearActivities: () => set({ activities: [] }),
+  upsertActivityFromQuery: (item) =>
+    set((state) => {
+      const exists = state.activities.some((a) => a.id === item.id);
+      return {
+        activities: exists
+          ? state.activities.map((a) => (a.id === item.id ? { ...a, ...item } : a))
+          : [item, ...state.activities].slice(0, 50),
+      };
+    }),
+
+  setActivities: (items) => set({ activities: items, activitiesSyncedAt: Date.now() }),
+
+  clearActivities: () => set({ activities: [], activitiesSyncedAt: null }),
 }));

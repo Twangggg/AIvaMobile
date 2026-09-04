@@ -1,0 +1,24 @@
+name: AIva Mobile Checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  typecheck-selftest:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Geofence selftest
+        run: npx --yes tsx src/features/aiva/services/geofence.selftest.ts
+      # Backend lives outside this git repo (../backend). Run locally:
+      #   cd ../backend && dotnet test tests/AIva.Api.Tests/AIva.Api.Tests.csproj

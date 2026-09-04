@@ -1,6 +1,8 @@
 import { useEffect, useMemo } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
+import { palette } from '@/theme/colors';
+
 const PULSE_DURATION = 1000;
 
 function SkeletonBlock({ style }: { style?: object }) {
@@ -78,7 +80,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, gap: 24 },
   hero: { alignItems: 'center', gap: 12, paddingVertical: 24 },
   row: { flexDirection: 'row', gap: 12 },
-  block: { backgroundColor: '#2a2a2a', borderRadius: 6 },
-  card: { flex: 1, height: 100, backgroundColor: '#2a2a2a', borderRadius: 6 },
+  block: { backgroundColor: palette.slate.high, borderRadius: 12 },
+  card: { flex: 1, height: 100, backgroundColor: palette.slate.high, borderRadius: 12 },
   section: { gap: 12 },
 });

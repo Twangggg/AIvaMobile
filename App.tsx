@@ -1,29 +1,105 @@
-import '@/config/sentry';
-import '@/i18n';
+import * as SplashScreen from 'expo-splash-screen';
+import React from 'react';
+import { ScrollView, Text, View } from 'react-native';
 
-import { NavigationContainer } from '@react-navigation/native';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
-import { RootNavigator } from '@/navigation/RootNavigator';
-import { AppProviders } from '@/providers/AppProviders';
-import { queryClient } from '@/services/query/queryClient';
-import { useAppTheme } from '@/theme/theme';
+try {
+  // These may fail on some devices; catch early
+  require('@/config/sentry');
+} catch (e: any) {
+  console.warn('[init] sentry failed:', e?.message);
+}
 
-export default function App() {
+try {
+  require('@/i18n');
+} catch (e: any) {
+  console.warn('[init] i18n failed:', e?.message);
+}
+
+type ErrorBoundaryProps = { children: React.ReactNode };
+type ErrorBoundaryState = { error: Error | null };
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#111', padding: 20, justifyContent: 'center' }}>
+          <Text style={{ color: 'red', fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>ERROR:</Text>
+          <ScrollView>
+            <Text style={{ color: '#eee', fontFamily: 'monospace', fontSize: 12 }}>
+              {this.state.error.stack || this.state.error.message}
+            </Text>
+          </ScrollView>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+let SafeAreaProvider: any;
+let QueryClientProvider: any;
+let NavigationContainer: any;
+let StatusBar: any;
+let AppProviders: any;
+let RootNavigator: any;
+let useAppTheme: any;
+let queryClient: any;
+let moduleError: string | null = null;
+
+try {
+  SafeAreaProvider = require('react-native-safe-area-context').SafeAreaProvider;
+  QueryClientProvider = require('@tanstack/react-query').QueryClientProvider;
+  NavigationContainer = require('@react-navigation/native').NavigationContainer;
+  StatusBar = require('expo-status-bar').StatusBar;
+  AppProviders = require('@/providers/AppProviders').AppProviders;
+  RootNavigator = require('@/navigation/RootNavigator').RootNavigator;
+  useAppTheme = require('@/theme/theme').useAppTheme;
+  queryClient = require('@/services/query/queryClient').queryClient;
+} catch (e: any) {
+  moduleError = e?.message || String(e);
+  console.warn('[init] module load failed:', moduleError);
+}
+
+function AppInner() {
   const theme = useAppTheme();
 
   return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <NavigationContainer>
-          <AppProviders>
-            <StatusBar style={theme.isDark ? 'light' : 'dark'} />
-            <RootNavigator />
-          </AppProviders>
-        </NavigationContainer>
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    <NavigationContainer>
+      <AppProviders>
+        <StatusBar style={theme.isDark ? 'light' : 'dark'} />
+        <RootNavigator />
+      </AppProviders>
+    </NavigationContainer>
+  );
+}
+
+export default function App() {
+  if (moduleError) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#111', padding: 20, justifyContent: 'center' }}>
+        <Text style={{ color: 'red', fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>MODULE LOAD ERROR:</Text>
+        <ScrollView>
+          <Text style={{ color: '#eee', fontFamily: 'monospace', fontSize: 12 }}>{moduleError}</Text>
+        </ScrollView>
+      </View>
+    );
+  }
+  return (
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <AppInner />
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }

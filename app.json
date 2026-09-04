@@ -6,6 +6,11 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-hold.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#001428"
+    },
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -20,16 +25,58 @@
     "android": {
       "package": "com.aiva.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#00236f",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-localization", "sentry-expo"]
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#001428",
+          "image": "./assets/splash-hold.png",
+          "imageWidth": 1
+        }
+      ],
+      "expo-localization",
+      "expo-location",
+      "expo-audio",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "AIVA needs photo access to ask about images.",
+          "cameraPermission": "AIVA needs the camera to capture questions."
+        }
+      ],
+      "sentry-expo",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": ["central"],
+          "bluetoothAlwaysPermission": "AIvaMobile needs Bluetooth to connect to your AIVA device"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "72656c60-322e-479f-af95-628b801ecf57"
+      }
+    }
   }
 }

@@ -6,8 +6,8 @@ import { resources } from './resources';
 
 void i18n.use(initReactI18next).init({
   resources,
-  lng: Localization.getLocales()[0]?.languageCode ?? 'en',
-  fallbackLng: 'en',
+  lng: Localization.getLocales()[0]?.languageCode ?? 'vi',
+  fallbackLng: 'vi',
   interpolation: { escapeValue: false },
 });
 
