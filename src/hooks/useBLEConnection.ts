@@ -9,6 +9,8 @@ import { BLEService } from '@/services/ble/ble.service';
 import type { AIVACommand, AIVAConfig, AIVADeviceStatus, BLEScanDevice, WifiAP } from '@/services/ble/ble.types';
 import { DEFAULT_SECRET_KEY } from '@/services/ble/ble.types';
 import { setApiBaseUrl } from '@/services/http/client';
+import { DeviceBridge } from '@/services/iot/device.bridge';
+import type { DeviceEventName } from '@/services/iot/protocol';
 import { startDeviceHub } from '@/services/signalr/deviceHub';
 
 export function useBLEConnection(onAlert?: (title: string, message: string) => void) {
@@ -24,6 +26,7 @@ export function useBLEConnection(onAlert?: (title: string, message: string) => v
   const [wifiScanning, setWifiScanning] = useState(false);
   const [wifiNetworks, setWifiNetworks] = useState<WifiAP[]>([]);
   const [configLoading, setConfigLoading] = useState(false);
+  const lastPresenceRef = useRef<{ ip: string; at: number }>({ ip: '', at: 0 });
 
   useEffect(() => {
     const service = BLEService.getShared();
@@ -41,7 +44,43 @@ export function useBLEConnection(onAlert?: (title: string, message: string) => v
         heap: status.heap,
         playState: status.play ?? useAivaStore.getState().device.playState,
         battery: typeof status.battery === 'number' ? status.battery : useAivaStore.getState().device.battery,
+        volume: typeof status.volume === 'number' ? status.volume : useAivaStore.getState().device.volume,
       });
+      DeviceBridge.getShared().ingestBleStatus({
+        play: status.play,
+        session_id: status.session_id,
+        battery: status.battery,
+        volume: status.volume,
+        camera_on: status.camera_on,
+        wakeword_on: status.wakeword_on,
+        last_spoken: status.last_spoken,
+        expect_labels: status.expect_labels,
+        finding: status.finding,
+        evt: status.evt as DeviceEventName | undefined,
+        evt_id: status.evt_id,
+        evt_payload: status.evt_payload as
+          | { matched?: boolean; label?: string; button?: string; url?: string; message?: string; minutes?: number }
+          | undefined,
+      });
+
+      // Mirror LAN IP to Supabase so AIvaWeb shows Online (throttle 20s unless IP changed).
+      if (status.wifi === 'connected' && status.ip && status.ip !== '0.0.0.0') {
+        const now = Date.now();
+        const prev = lastPresenceRef.current;
+        if (status.ip !== prev.ip || now - prev.at > 20_000) {
+          lastPresenceRef.current = { ip: status.ip, at: now };
+          const key = useAivaStore.getState().device.serverKey || DEFAULT_SECRET_KEY;
+          void devicesService
+            .reportPresence({
+              serverKey: key,
+              lanIp: status.ip,
+              fw: status.fw,
+              wifiSsid: status.ssid,
+              battery: typeof status.battery === 'number' ? status.battery : undefined,
+            })
+            .catch(() => {});
+        }
+      }
     });
 
     service.onDisconnected(() => {
@@ -151,30 +190,35 @@ export function useBLEConnection(onAlert?: (title: string, message: string) => v
         }
 
         await saveSavedDevice({ id: deviceId, name, secretKey, cloudDeviceId });
-        setApiBaseUrl(DEVICE_DEFAULTS.server.app_url);
+        if (DEVICE_DEFAULTS.server.app_url) {
+          setApiBaseUrl(DEVICE_DEFAULTS.server.app_url);
+        }
 
-        // Push lab defaults so Settings forms stay filled / device is ready.
-        // Wi‑Fi creds first, then explicit connect — writing alone may not reconnect.
+        // Push server endpoints (+ optional lab Wi‑Fi). Never wipe Wi‑Fi with empty SSID.
         try {
-          await serviceRef.current.writeConfig({
-            wifi: {
-              ssid: DEVICE_DEFAULTS.wifi.ssid,
-              pass: DEVICE_DEFAULTS.wifi.pass,
-            },
-            server: {
-              url: DEVICE_DEFAULTS.server.url,
-              token: DEVICE_DEFAULTS.server.token,
-              app_url: DEVICE_DEFAULTS.server.app_url,
-            },
+          const partial: Partial<AIVAConfig> = {
             camera: {
               framesize: DEVICE_DEFAULTS.camera.framesize,
               quality: DEVICE_DEFAULTS.camera.quality,
             },
-            audio: {
-              volume: DEVICE_DEFAULTS.audio.volume,
-            },
-          } as Partial<AIVAConfig>);
-          await serviceRef.current.sendCommand('connect');
+          };
+          if (DEVICE_DEFAULTS.wifi.ssid) {
+            partial.wifi = {
+              ssid: DEVICE_DEFAULTS.wifi.ssid,
+              pass: DEVICE_DEFAULTS.wifi.pass,
+            };
+          }
+          if (DEVICE_DEFAULTS.server.app_url || DEVICE_DEFAULTS.server.url) {
+            partial.server = {
+              url: DEVICE_DEFAULTS.server.url || '',
+              token: DEVICE_DEFAULTS.server.token || '',
+              app_url: DEVICE_DEFAULTS.server.app_url || '',
+            };
+          }
+          await serviceRef.current.writeConfig(partial);
+          if (DEVICE_DEFAULTS.wifi.ssid) {
+            await serviceRef.current.sendCommand('connect');
+          }
           await serviceRef.current.sendCommand('status');
         } catch {
           // Defaults are best-effort; UI can still edit manually.
@@ -194,6 +238,7 @@ export function useBLEConnection(onAlert?: (title: string, message: string) => v
               wifiStatus: s.wifi,
               wifiRssi: s.rssi,
               heap: s.heap,
+              volume: typeof s.volume === 'number' ? s.volume : useAivaStore.getState().device.volume,
             });
             await saveSavedDevice({
               id: deviceId,
@@ -209,6 +254,15 @@ export function useBLEConnection(onAlert?: (title: string, message: string) => v
               } catch {
                 // ignore
               }
+            } else if (s.ip && s.ip !== '0.0.0.0') {
+              void devicesService
+                .reportPresence({
+                  serverKey: secretKey,
+                  lanIp: s.ip,
+                  fw: s.fw,
+                  wifiSsid: s.ssid,
+                })
+                .catch(() => {});
             }
           })
           .catch(() => {});
@@ -222,6 +276,9 @@ export function useBLEConnection(onAlert?: (title: string, message: string) => v
           } else {
             setApiBaseUrl(DEVICE_DEFAULTS.server.app_url);
             updateDevice({ appUrl: DEVICE_DEFAULTS.server.app_url });
+          }
+          if (typeof cfg?.audio?.volume === 'number') {
+            updateDevice({ volume: cfg.audio.volume });
           }
         })();
       } catch (e) {
@@ -246,14 +303,22 @@ export function useBLEConnection(onAlert?: (title: string, message: string) => v
   const writeConfig = useCallback(async (partial: Partial<AIVAConfig>) => {
     if (!serviceRef.current) throw new Error('Not connected');
     await serviceRef.current.writeConfig(partial);
+    if (typeof partial.audio?.volume === 'number') {
+      updateDevice({ volume: Math.min(100, Math.max(0, partial.audio.volume)) });
+    }
     // Soft refresh later — empty reads while firmware applies are normal.
     const service = serviceRef.current;
     void (async () => {
       await new Promise((r) => setTimeout(r, 1500));
       const cfg = await service.tryReadConfig(6);
-      if (cfg) setConfig(cfg);
+      if (cfg) {
+        setConfig(cfg);
+        if (typeof cfg.audio?.volume === 'number') {
+          updateDevice({ volume: cfg.audio.volume });
+        }
+      }
     })();
-  }, []);
+  }, [updateDevice]);
 
   const sendCommand = useCallback(async (command: AIVACommand) => {
     if (!serviceRef.current) throw new Error('Not connected');

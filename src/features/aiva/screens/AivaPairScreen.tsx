@@ -90,12 +90,18 @@ export function AivaPairScreen() {
   const [framesize, setFramesize] = useState<number>(DEVICE_DEFAULTS.camera.framesize);
   const [wakeEnabled, setWakeEnabled] = useState(false);
   const [wakePhrase, setWakePhrase] = useState('');
-  const [volume, setVolume] = useState<number>(DEVICE_DEFAULTS.audio.volume);
+  const [volume, setVolume] = useState<number>(device.volume);
+  const [prevDeviceVolume, setPrevDeviceVolume] = useState<number>(device.volume);
+  if (prevDeviceVolume !== device.volume) {
+    setPrevDeviceVolume(device.volume);
+    setVolume(device.volume);
+  }
   const [savingDevice, setSavingDevice] = useState(false);
   const [botUrl, setBotUrl] = useState(String(DEVICE_DEFAULTS.iotBotUrl));
   const [botBusy, setBotBusy] = useState(false);
   const [showTrial, setShowTrial] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [hasScanned, setHasScanned] = useState(false);
 
   const step = device.connected ? 'connected' : connecting ? 'authenticating' : scanning ? 'scanning' : 'idle';
 
@@ -139,10 +145,19 @@ export function AivaPairScreen() {
       setFramesize(nearestFramePreset(config.camera?.framesize ?? DEVICE_DEFAULTS.camera.framesize));
       setWakeEnabled(Boolean(config.wakeword?.enabled));
       setWakePhrase(config.wakeword?.phrase || '');
-      setVolume(config.audio?.volume ?? DEVICE_DEFAULTS.audio.volume);
+      const vol = config.audio?.volume ?? DEVICE_DEFAULTS.audio.volume;
+      setVolume(vol);
+      if (typeof config.audio?.volume === 'number') {
+        updateDevice({ volume: config.audio.volume });
+      }
     }, 0);
     return () => clearTimeout(timer);
   }, [config, updateDevice]);
+
+  const handleStartScan = useCallback(async () => {
+    setHasScanned(true);
+    await startScan();
+  }, [startScan]);
 
   const handleSelectNetwork = (ssid: string) => {
     setWifiSSID(ssid);
@@ -291,16 +306,12 @@ export function AivaPairScreen() {
           <Text style={[styles.pageSub, { color: theme.colors.textMuted }]}>{t('settingsPage.subtitle')}</Text>
         </View>
 
-        <AccountSettingsSection />
-
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, ...theme.shadows.card }]}>
           <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>{t('play.glassesSection')}</Text>
           <View style={styles.statusRow}>
             <View style={styles.statusInfo}>
-              {(step === 'authenticating' || step === 'scanning') && (
-                <Text style={[styles.statusLabel, { color: theme.colors.textMuted }]}>
-                  {step === 'authenticating' ? t('settings.authenticating') : t('settings.scanning')}
-                </Text>
+              {step === 'authenticating' && (
+                <Text style={[styles.statusLabel, { color: theme.colors.textMuted }]}>{t('settings.authenticating')}</Text>
               )}
               <Text style={[styles.statusName, { color: theme.colors.text }]}>{device.name}</Text>
               {device.ip ? <Text style={[styles.statusSub, { color: theme.colors.accent }]}>{t('statusModal.ip')}: {device.ip}</Text> : null}
@@ -330,21 +341,17 @@ export function AivaPairScreen() {
             </Pressable>
           )}
 
-          <View style={styles.sectionActions}>
-            {device.connected ? (
+          {device.connected ? (
+            <View style={styles.sectionActions}>
               <Pressable onPress={disconnect} style={[styles.btnSmall, { backgroundColor: alpha(theme.colors.danger, 0.3) }]}>
                 <Text style={[styles.btnSmallLabel, { color: theme.colors.danger }]}>{t('settings.disconnect')}</Text>
               </Pressable>
-            ) : (
-              <Pressable onPress={startScan} disabled={scanning} style={[styles.btnSmall, { backgroundColor: theme.colors.accent, opacity: scanning ? 0.5 : 1 }]}>
-                <Text style={[styles.btnSmallLabel, { color: theme.colors.onAccent }]}>{t('settings.scan')}</Text>
-              </Pressable>
-            )}
-          </View>
+            </View>
+          ) : null}
         </View>
 
         {!device.connected && savedDevice ? (
-          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, ...theme.shadows.card }]}>
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.lastDevice')}</Text>
             <Text style={[styles.fieldDesc, { color: theme.colors.textMuted }]}>{savedDevice.name}</Text>
             <View style={styles.sectionActions}>
@@ -364,29 +371,56 @@ export function AivaPairScreen() {
           </View>
         ) : null}
 
-        {devices.length > 0 && !device.connected && (
-          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('settings.foundDevices')}</Text>
-            {devices.map((d) => (
+        {!device.connected ? (
+          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, ...theme.shadows.card }]}>
+            <View style={styles.nearbyHead}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text, marginBottom: 0, flex: 1 }]}>
+                {t('settings.nearbyDevices')}
+              </Text>
               <Pressable
-                key={d.id}
-                onPress={() => connectAndAuth(d.id, secretKey, d.name || undefined)}
-                disabled={connecting || authenticating}
-                style={[styles.deviceItem, { borderColor: theme.colors.border, opacity: (connecting || authenticating) ? 0.6 : 1 }]}
+                onPress={handleStartScan}
+                disabled={scanning}
+                style={[styles.btnSmall, { backgroundColor: theme.colors.accent, opacity: scanning ? 0.5 : 1 }]}
               >
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.deviceName, { color: theme.colors.text }]}>{d.name || t('settings.unknown')}</Text>
-                  <Text style={[styles.deviceMeta, { color: theme.colors.textMuted }]}>{t('settings.rssi')}: {d.rssi} {t('statusModal.dbm')}</Text>
-                </View>
-                {(connecting || authenticating) ? (
-                  <ActivityIndicator size="small" color={theme.colors.accent} />
-                ) : (
-                  <Ionicons name="radio-outline" size={18} color={theme.colors.accent} />
-                )}
+                <Text style={[styles.btnSmallLabel, { color: theme.colors.onAccent }]}>{t('settings.scan')}</Text>
               </Pressable>
-            ))}
+            </View>
+
+            {scanning ? (
+              <View style={styles.nearbyStatus}>
+                <ActivityIndicator size="small" color={theme.colors.accent} />
+                <Text style={[styles.fieldDesc, { color: theme.colors.textMuted, marginBottom: 0 }]}>{t('common.scanning')}</Text>
+              </View>
+            ) : devices.length > 0 ? (
+              <View style={styles.deviceList}>
+                {devices.map((d) => (
+                  <Pressable
+                    key={d.id}
+                    onPress={() => connectAndAuth(d.id, secretKey, d.name || undefined)}
+                    disabled={connecting || authenticating}
+                    style={[styles.deviceItem, { borderColor: theme.colors.border, opacity: connecting || authenticating ? 0.6 : 1 }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.deviceName, { color: theme.colors.text }]}>{d.name || t('settings.unknown')}</Text>
+                      <Text style={[styles.deviceMeta, { color: theme.colors.textMuted }]}>
+                        {t('settings.rssi')}: {d.rssi} {t('statusModal.dbm')}
+                      </Text>
+                    </View>
+                    {connecting || authenticating ? (
+                      <ActivityIndicator size="small" color={theme.colors.accent} />
+                    ) : (
+                      <Ionicons name="radio-outline" size={18} color={theme.colors.accent} />
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
+              <Text style={[styles.fieldDesc, { color: theme.colors.textMuted, marginBottom: 0 }]}>
+                {hasScanned ? t('settings.noDevicesFound') : t('settings.scanHint')}
+              </Text>
+            )}
           </View>
-        )}
+        ) : null}
 
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, ...theme.shadows.card }]}>
           <Pressable onPress={() => setShowTrial((v) => !v)} style={styles.collapseHead}>
@@ -441,6 +475,8 @@ export function AivaPairScreen() {
             </>
           ) : null}
         </View>
+
+        <AccountSettingsSection />
 
         <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
           <Pressable onPress={() => setShowAdvanced((v) => !v)} style={styles.collapseHead}>
@@ -713,7 +749,8 @@ export function AivaPairScreen() {
               )}
             </View>
 
-            {/* Server */}
+            {/* Server — lab/dev only; production fills app_url from env during BLE connect */}
+            {__DEV__ ? (
             <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
               <SectionTitle title={t('settings.serverConfig')} theme={theme} />
               {config?.server?.url ? (
@@ -756,6 +793,7 @@ export function AivaPairScreen() {
                 <Text style={[styles.btnSmallLabel, { color: savingServer ? theme.colors.textMuted : theme.colors.onAccent }]}>{savingServer ? t('settings.savingServer') : t('settings.saveServer')}</Text>
               </Pressable>
             </View>
+            ) : null}
 
 
             {/* Commands */}
@@ -833,6 +871,9 @@ const styles = StyleSheet.create({
   errorBox: { padding: 12, borderRadius: 14, borderWidth: 1 },
   errorText: { fontSize: 12, fontWeight: '500' },
   sectionActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  nearbyHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  nearbyStatus: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 28 },
+  deviceList: { gap: 8 },
   btnSmall: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, minHeight: 40, justifyContent: 'center' },
   btnSmallLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.3 },
   sectionTitle: { fontSize: 14, fontWeight: '700', letterSpacing: 0.4, marginBottom: 4 },

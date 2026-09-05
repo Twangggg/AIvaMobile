@@ -12,6 +12,9 @@ export type CloudDevice = {
   isConnected: boolean;
   lastSeenAt: string;
   pairedAt: string;
+  lanIp?: string;
+  httpPort?: number;
+  wsPort?: number;
 };
 
 type DeviceRow = {
@@ -26,6 +29,9 @@ type DeviceRow = {
   last_seen_at: string;
   paired_at: string;
   server_key?: string;
+  lan_ip?: string;
+  http_port?: number;
+  ws_port?: number;
 };
 
 function mapDevice(row: DeviceRow): CloudDevice {
@@ -40,6 +46,9 @@ function mapDevice(row: DeviceRow): CloudDevice {
     isConnected: row.is_connected,
     lastSeenAt: row.last_seen_at,
     pairedAt: row.paired_at,
+    lanIp: row.lan_ip || '',
+    httpPort: row.http_port ?? 8040,
+    wsPort: row.ws_port ?? 8041,
   };
 }
 
@@ -118,6 +127,62 @@ export const devicesService = {
       .single();
     if (error) throw new ApiError(error.message, 400);
     return mapDevice(data as DeviceRow);
+  },
+
+  /**
+   * Push LAN IP from BLE status so AIvaWeb can show Online without waiting for ESP→API heartbeat.
+   */
+  async reportPresence(payload: {
+    serverKey: string;
+    lanIp: string;
+    httpPort?: number;
+    wsPort?: number;
+    fw?: string;
+    wifiSsid?: string;
+    battery?: number;
+    mac?: string;
+  }) {
+    const lanIp = payload.lanIp.trim();
+    const serverKey = payload.serverKey.trim();
+    if (!lanIp || !serverKey) return null;
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc('device_heartbeat', {
+      p_server_key: serverKey,
+      p_lan_ip: lanIp,
+      p_http_port: payload.httpPort ?? 8040,
+      p_ws_port: payload.wsPort ?? 8041,
+      p_fw: payload.fw ?? null,
+      p_wifi_ssid: payload.wifiSsid ?? null,
+      p_battery: payload.battery ?? null,
+      p_mac: payload.mac ?? null,
+    });
+
+    if (!rpcError && rpcData && (rpcData as { ok?: boolean }).ok !== false) {
+      return rpcData;
+    }
+
+    try {
+      const userId = await requireUserId();
+      const { error } = await supabase
+        .from('devices')
+        .update({
+          lan_ip: lanIp,
+          http_port: payload.httpPort ?? 8040,
+          ws_port: payload.wsPort ?? 8041,
+          firmware_version: payload.fw || undefined,
+          wifi_ssid: payload.wifiSsid || undefined,
+          battery_level: payload.battery,
+          mac_address: payload.mac || undefined,
+          is_connected: true,
+          last_seen_at: new Date().toISOString(),
+        })
+        .eq('user_id', userId)
+        .eq('server_key', serverKey);
+      if (error) return null;
+      return { ok: true, lan_ip: lanIp };
+    } catch {
+      return null;
+    }
   },
 
   async unpair(id: string) {

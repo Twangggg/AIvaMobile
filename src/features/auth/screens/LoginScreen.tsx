@@ -30,17 +30,11 @@ export function LoginScreen() {
   const {
     control,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm<LoginValues>({
     resolver: zodResolver(schema),
     defaultValues: { email: '', password: '' },
   });
-
-  const fillDemo = (kind: 'teacher' | 'parent') => {
-    setValue('email', kind === 'parent' ? 'parent@aiva.app' : 'teacher@aiva.app');
-    setValue('password', 'Demo@1234');
-  };
 
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -64,15 +58,6 @@ export function LoginScreen() {
           </Text>
           <Text variant="title">{t('auth.signIn')}</Text>
           <Text tone="muted">{t('auth.secureAuth')}</Text>
-        </View>
-
-        <View style={{ flexDirection: 'row', gap: theme.spacing.sm, marginBottom: theme.spacing.md }}>
-          <View style={{ flex: 1 }}>
-            <Button label={t('auth.demoTeacher')} variant="ghost" onPress={() => fillDemo('teacher')} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Button label={t('auth.demoParent')} variant="ghost" onPress={() => fillDemo('parent')} />
-          </View>
         </View>
 
         <View style={{ gap: theme.spacing.md }}>

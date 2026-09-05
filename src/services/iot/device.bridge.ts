@@ -3,7 +3,7 @@ import { BLEService } from '@/services/ble/ble.service';
 import type { AIVACommand, AIVAConfig } from '@/services/ble/ble.types';
 
 import { loadIotBotUrl, saveIotBotUrl } from './iot.storage';
-import type { DeviceCommand, DeviceEvent, DeviceStatusExt } from './protocol';
+import type { DeviceCommand, DeviceEvent, DeviceEventName, DeviceStatusExt } from './protocol';
 import { newCmdId } from './protocol';
 
 type EventCb = (event: DeviceEvent) => void;
@@ -155,7 +155,23 @@ export class DeviceBridge {
     useAivaStore.getState().updateDevice({
       playState: status.play ?? 'idle',
       battery: typeof status.battery === 'number' ? status.battery : useAivaStore.getState().device.battery,
+      volume: typeof status.volume === 'number' ? status.volume : useAivaStore.getState().device.volume,
     });
+  }
+
+  /** Feed STATUS from BLE notify/poll into the same event bus as the IoT bot. */
+  ingestBleStatus(status: DeviceStatusExt & { evt?: DeviceEventName; evt_id?: string; evt_payload?: DeviceEvent['payload']; session_id?: string | null }): void {
+    this.applyStatus(status);
+    if (status.evt && status.evt_id && status.evt_id !== this.lastEvtId) {
+      this.lastEvtId = status.evt_id;
+      this.emit({
+        type: 'event',
+        event: status.evt,
+        id: status.evt_id,
+        session_id: status.session_id,
+        payload: status.evt_payload,
+      });
+    }
   }
 
   async send(command: DeviceCommand | string): Promise<void> {

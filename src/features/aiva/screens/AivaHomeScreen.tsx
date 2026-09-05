@@ -27,7 +27,6 @@ import { useAppTheme } from '@/theme/theme';
 import { queryToActivity, useAivaStore } from '../aiva.store';
 import { AppShell } from '../components/AppShell';
 import { SoftSlider } from '../components/SoftSlider';
-import { DEVICE_DEFAULTS } from '../device.defaults';
 import { loadSavedDevice, type SavedDevice } from '../services/device.storage';
 import { fetchAiHealth } from '../services/health.service';
 import { queriesService } from '../services/queries.service';
@@ -46,9 +45,10 @@ export function AivaHomeScreen() {
   const { t } = useTranslation();
   const theme = useAppTheme();
   const navigation = useNavigation<HomeNav>();
-  const { device, activities } = useAivaStore();
+  const { device, updateDevice, activities } = useAivaStore();
   const { alert, AlertModalProps } = useAlert();
-  const [volume, setVolume] = useState<number>(DEVICE_DEFAULTS.audio.volume);
+  const [volumeDraft, setVolumeDraft] = useState<number | null>(null);
+  const volume = volumeDraft ?? device.volume;
   const [scrollLock, setScrollLock] = useState(false);
   const [savedDevice, setSavedDevice] = useState<SavedDevice | null>(null);
   const [aiOnline, setAiOnline] = useState<boolean | null>(null);
@@ -94,15 +94,18 @@ export function AivaHomeScreen() {
 
   const commitVolume = useCallback(
     (v: number) => {
+      const next = Math.min(100, Math.max(0, Math.round(v)));
+      updateDevice({ volume: next });
+      setVolumeDraft(null);
       if (!device.connected) return;
       if (volumeTimer.current) clearTimeout(volumeTimer.current);
       volumeTimer.current = setTimeout(() => {
         BLEService.getShared()
-          .writeConfig({ audio: { volume: v } } as any)
+          .writeConfig({ audio: { volume: next } } as any)
           .catch(() => {});
       }, 400);
     },
-    [device.connected],
+    [device.connected, updateDevice],
   );
 
   const startOfDay = new Date();
@@ -300,7 +303,7 @@ export function AivaHomeScreen() {
               </View>
               <SoftSlider
                 value={volume}
-                onChange={setVolume}
+                onChange={setVolumeDraft}
                 onSlidingComplete={commitVolume}
                 onDragStateChange={setScrollLock}
                 accentColor={theme.colors.primary}

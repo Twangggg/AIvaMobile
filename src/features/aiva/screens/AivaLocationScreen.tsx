@@ -134,6 +134,7 @@ export function AivaLocationScreen() {
       await BLEService.getShared().writeConfig({
         audio: { volume: 90 },
       } as any);
+      useAivaStore.getState().updateDevice({ volume: 90 });
       alert(t('common.success'), t('location.findSent'));
     } catch {
       alert(t('common.error'), t('location.findFailed'));

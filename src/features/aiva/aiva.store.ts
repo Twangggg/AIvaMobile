@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import i18n from '@/i18n';
 
+import { DEVICE_DEFAULTS } from './device.defaults';
 import type { QueryKind, QueryRecord, QuerySource } from './services/queries.service';
 
 export type WiFiState = 'connected' | 'disconnected' | 'idle' | 'no_ssid' | 'auth_failed' | 'unknown';
@@ -28,6 +29,8 @@ export type DeviceState = {
   iotBotUrl: string;
   iotLinked: boolean;
   playState: 'idle' | 'listening' | 'speaking' | 'capturing' | 'quiet';
+  /** Device speaker volume 0–100 (synced from STATUS / config / UI). */
+  volume: number;
 };
 
 export type ActivityKind = QueryKind;
@@ -64,6 +67,7 @@ const defaultDevice: DeviceState = {
   iotBotUrl: '',
   iotLinked: false,
   playState: 'idle',
+  volume: DEVICE_DEFAULTS.audio.volume,
 };
 
 export function timeAgo(ts: number): string {
